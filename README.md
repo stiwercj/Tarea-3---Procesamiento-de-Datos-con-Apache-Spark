@@ -1,4 +1,90 @@
 # Tarea 3 - Procesamiento de Datos Batch y en Tiempo Real con Apache Spark y Kafka
+# ==============================================================================
+# PROYECTO: Procesamiento Masivo Batch con Apache Spark (Datos Sisbén)
+# AUTOR: Stiwer Andrés Castillo Jiménez
+# CURSO: Big Data - UNAD
+# ==============================================================================
+
+import sys
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, count, desc
+
+def ejecutar_procesamiento_batch():
+    # 1. Inicialización de la SparkSession optimizada para entornos distribuidos
+    spark = SparkSession.builder \
+        .appName("ProcesamientoBatch_Sisben_StiwerCastillo") \
+        .config("spark.driver.memory", "4g") \
+        .getOrCreate()
+
+    print("==================================================")
+    print("--- 1. INICIALIZACIÓN Y CARGA DE DATOS ---")
+    print("==================================================")
+
+    # Ruta del archivo masivo del Sisbén (más de 4.4 millones de registros)
+    ruta_dataset = "query.csv"
+
+    # 2. Carga del archivo CSV con inferencia de esquema, cabecera y 
+    # manejo robusto de comillas dobles y caracteres especiales
+    df_raw = spark.read \
+        .option("header", "true") \
+        .option("inferSchema", "true") \
+        .option("multiline", "true") \
+        .option("quote", "\"") \
+        .option("escape", "\"") \
+        .csv(ruta_dataset)
+
+    total_inicial = df_raw.count()
+    print(f">> Total de registros iniciales cargados: {total_inicial}")
+
+    # Impresión del esquema estructural detectado por Spark
+    print("\nEsquema Estructural del Dataset:")
+    df_raw.printSchema()
+
+    print("==================================================")
+    print("--- 2. LIMPIEZA Y FILTRADO DE DATOS ---")
+    print("==================================================")
+
+    # 3. Limpieza de valores nulos críticos para garantizar la calidad analítica
+    df_limpio = df_raw.dropna(subset=["cod_mpio", "grupo"])
+    total_limpio = df_limpio.count()
+    print(f">> Total de registros después de limpieza y filtrado: {total_limpio}")
+
+    print("==================================================")
+    print("--- 3. ANÁLISIS EXPLORATORIO DE DATOS (EDA) ---")
+    print("==================================================")
+
+    # 4. Agregación 1: Distribución espacial de registros por Código de Municipio (Top 10)
+    print("\n>> Top 10 Municipios con mayor concentración de registros:")
+    df_limpio.groupBy("cod_mpio") \
+        .agg(count("*").alias("total_registros")) \
+        .orderBy(desc("total_registros")) \
+        .show(10, truncate=False)
+
+    # 5. Agregación 2: Segmentación poblacional por Grupos del Sisbén (A, B, C, D)
+    print("\n>> Distribución Poblacional por Grupos Socioeconómicos:")
+    df_limpio.groupBy("grupo") \
+        .agg(count("*").alias("total_registros")) \
+        .orderBy("grupo") \
+        .show(truncate=False)
+
+    print("==================================================")
+    print("--- 4. ESTADÍSTICAS DESCRIPTIVAS (MÉTRICAS CLAVE) ---")
+    print("==================================================")
+
+    # 6. Cálculo matemático descriptivo acotado a columnas clave para visualización limpia
+    columnas_analisis = ["cod_mpio", "nivel", "fex"]
+    columnas_validas = [c for c in columnas_analisis if c in df_limpio.columns]
+
+    if columnas_validas:
+        df_limpio.select(columnas_validas).describe().show(truncate=False)
+    else:
+        df_limpio.select(df_limpio.columns[:3]).describe().show(truncate=False)
+
+    print("\n>> Proceso Batch finalizado exitosamente.")
+    spark.stop()
+
+if __name__ == "__main__":
+    ejecutar_procesamiento_batch()
 
 ## Descripción del proyecto
 
